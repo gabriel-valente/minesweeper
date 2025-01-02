@@ -81,3 +81,26 @@
     }
   }
 }
+
+.gameStatus {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: Consolas, monospace;
+  font-size: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.5);
+
+  .win {
+    color: #12df12;
+  }
+
+  .lost {
+    color: #f01111;
+  }
+}

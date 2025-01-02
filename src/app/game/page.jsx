@@ -13,6 +13,10 @@ export default function Game({ ...props }) {
   const [time, setTime] = useState(0);
   const [grid, setGrid] = useState();
   const [userGrid, setUserGrid] = useState();
+  const [gameMessage, setGameMessage] = useState('');
+  const [gridCreated, setGridCreated] = useState(false);
+
+  let timer = null;
 
   useEffect(() => {
     const lsGameSettings = JSON.parse(localStorage.getItem('gameSettings'));
@@ -24,17 +28,27 @@ export default function Game({ ...props }) {
     setGameState(lsGameState);
     setActiveBombs(lsGameSettings.bombs);
 
-    handleGrid(lsGameSettings);
+    setGrid(Array.from({ length: lsGameSettings.x }, () => Array(lsGameSettings.y).fill(0)));
+    setUserGrid(Array.from({ length: lsGameSettings.x }, () => Array(lsGameSettings.y).fill(false)));
   }, []);
 
   useEffect(() => {
-    let timer = null;
-
     if (gameState == 'paused') clearInterval(timer);
     else timer = setInterval(() => setTime(time + 1), 1000);
 
     return () => clearInterval(timer);
   }, [time, gameState]);
+
+  useEffect(() => {
+    if (activeBombs == 0) {
+      clearInterval(timer);
+      setGameMessage('You Win!');
+      setGameState('win');
+    } else if (gameState == 'lost') {
+      clearInterval(timer);
+      setGameMessage('You Lost!');
+    }
+  }, [activeBombs, gameState]);
 
   const handleStatusChange = () => {
     const state = gameState == 'playing' ? 'paused' : 'playing';
@@ -44,44 +58,44 @@ export default function Game({ ...props }) {
     localStorage.setItem('gameState', state);
   };
 
-  const handleGrid = (gameSettings) => {
-    const currentGrid = Array.from({ length: gameSettings.x }, () => Array(gameSettings.y).fill(0));
-    setUserGrid(Array.from({ length: gameSettings.x }, () => Array(gameSettings.y).fill(false)));
+  const createGrid = (clickX, clickY) => {
+    const currentGrid = grid;
 
-    for (let b = 0; b < gameSettings.bombs; b++) {
-      let valid = false;
+    const bombPositions = new Set();
+    while (bombPositions.size < gameSettings.bombs) {
+      const row = Math.floor(Math.random() * gameSettings.x);
+      const col = Math.floor(Math.random() * gameSettings.y);
 
-      while (!valid) {
-        const row = Math.floor(Math.random() * gameSettings.x);
-        const col = Math.floor(Math.random() * gameSettings.y);
-
-        if (currentGrid[row][col] != 'B') {
-          valid = true;
-          currentGrid[row][col] = 'B';
-        }
+      if ((row !== clickX || col !== clickY) && !bombPositions.has(`${row},${col}`)) {
+        bombPositions.add(`${row},${col}`);
       }
     }
 
-    for (let i = 0; i < gameSettings.x; i++) {
-      for (let j = 0; j < gameSettings.y; j++) {
-        for (let ii = Math.max(i - 1, 0); ii < Math.min(i + 2, gameSettings.x); ii++) {
-          for (let jj = Math.max(j - 1, 0); jj < Math.min(j + 2, gameSettings.y); jj++) {
-            if (i == ii && j == jj) continue;
+    for (const pos of bombPositions) {
+      const [row, col] = pos.split(',').map(Number);
+      currentGrid[row][col] = 'B';
 
-            if (currentGrid[ii][jj] == 'B' && currentGrid[i][j] != 'B') currentGrid[i][j]++;
-          }
+      for (let i = Math.max(0, row - 1); i <= Math.min(gameSettings.x - 1, row + 1); i++) {
+        for (let j = Math.max(0, col - 1); j <= Math.min(gameSettings.y - 1, col + 1); j++) {
+          if (currentGrid[i][j] !== 'B') currentGrid[i][j]++;
         }
       }
     }
 
     setGrid(currentGrid);
+
+    return currentGrid;
   };
 
   const handleCellClick = (event, x, y) => {
     event.preventDefault();
 
-    console.log(grid);
-    console.log(userGrid);
+    let tempGrid = grid;
+
+    if (!gridCreated) {
+      setGridCreated(true);
+      tempGrid = createGrid(x, y);
+    }
 
     if (event.type == 'contextmenu') {
       setUserGrid((prevGrid) => {
@@ -98,28 +112,31 @@ export default function Game({ ...props }) {
         return newGrid;
       });
     } else if (event.type == 'click' && userGrid[x][y] != 'F') {
-      if (grid[x][y] == '0') {
-        const tempUserGrid = propagateEmptyCells(x, y, userGrid);
+      if (tempGrid[x][y] == '0') {
+        const tempUserGrid = propagateEmptyCells(x, y, userGrid, tempGrid);
 
         setUserGrid([...tempUserGrid]);
       } else {
         setUserGrid((prevGrid) => {
           const newGrid = prevGrid.map((row) => [...row]);
           newGrid[x][y] = 'O';
+
+          if (newGrid[x][y] == 'O' && tempGrid[x][y] == 'B') setGameState('lost');
+
           return newGrid;
         });
       }
     }
   };
 
-  const propagateEmptyCells = (x, y, tempUserGrid) => {
+  const propagateEmptyCells = (x, y, tempUserGrid, grid) => {
     for (let i = Math.max(x - 1, 0); i < Math.min(x + 2, gameSettings.x); i++) {
       for (let j = Math.max(y - 1, 0); j < Math.min(y + 2, gameSettings.y); j++) {
         if (tempUserGrid[i][j] == 'O' || tempUserGrid[i][j] == 'F') continue;
 
         if (grid[i][j] == '0') {
           tempUserGrid[i][j] = 'O';
-          tempUserGrid = propagateEmptyCells(i, j, tempUserGrid);
+          tempUserGrid = propagateEmptyCells(i, j, tempUserGrid, grid);
         } else if (grid[i][j] != 'B') tempUserGrid[i][j] = 'O';
       }
     }
@@ -128,41 +145,49 @@ export default function Game({ ...props }) {
   };
 
   return (
-    <div className='gameWrapper'>
-      <div className='gameHeader'>
-        <div className='infoWrapper'>
-          <span className='hint'>Bombs</span>
-          <span className='info bombs'>{activeBombs}</span>
+    <>
+      <div className='gameWrapper'>
+        <div className='gameHeader'>
+          <div className='infoWrapper'>
+            <span className='hint'>Bombs</span>
+            <span className='info bombs'>{activeBombs}</span>
+          </div>
+          <div className='infoWrapper'>
+            <span className='hint'>Status</span>
+            <button className='info status' onClick={handleStatusChange}>
+              <span className='material-icons'>{gameState == 'playing' ? 'pause' : 'play_arrow'}</span>
+            </button>
+          </div>
+          <div className='infoWrapper'>
+            <span className='hint'>Time</span>
+            <span className='info timer'>{time}</span>
+          </div>
         </div>
-        <div className='infoWrapper'>
-          <span className='hint'>Status</span>
-          <button className='info status' onClick={handleStatusChange}>
-            <span className='material-icons'>{gameState == 'playing' ? 'pause' : 'play_arrow'}</span>
-          </button>
-        </div>
-        <div className='infoWrapper'>
-          <span className='hint'>Time</span>
-          <span className='info timer'>{time}</span>
+        <div className='gameGrid'>
+          {console.log(userGrid)}
+          {grid &&
+            grid.map((row, i) => (
+              <div key={`row-${i}`} className='row'>
+                {row.map((cell, j) => (
+                  <div
+                    key={`cell-${i}-${j}`}
+                    className={`cell ${userGrid[i][j] == 'O' ? (grid[i][j] == 'B' ? 'fail' : 'open') : ''}`}
+                    onClick={(e) => handleCellClick(e, i, j)}
+                    onContextMenu={(e) => handleCellClick(e, i, j)}>
+                    {userGrid[i][j] == 'O' && cell == 'B' && <span className='material-symbols-outlined'>explosion</span>}
+                    {userGrid[i][j] == 'O' && cell != '0' && cell != 'B' && cell}
+                    {userGrid[i][j] == 'F' && <span className='material-symbols-outlined'>flag</span>}
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
       </div>
-      <div className='gameGrid'>
-        {grid &&
-          grid.map((row, i) => (
-            <div key={`row-${i}`} className='row'>
-              {row.map((cell, j) => (
-                <div
-                  key={`cell-${i}-${j}`}
-                  className={`cell ${userGrid[i][j] == 'O' ? (grid[i][j] == 'B' ? 'fail' : 'open') : ''}`}
-                  onClick={(e) => handleCellClick(e, i, j)}
-                  onContextMenu={(e) => handleCellClick(e, i, j)}>
-                  {userGrid[i][j] == 'O' && cell == 'B' && <span className='material-symbols-outlined'>explosion</span>}
-                  {userGrid[i][j] == 'O' && cell != '0' && cell != 'B' && cell}
-                  {userGrid[i][j] == 'F' && <span className='material-symbols-outlined'>flag</span>}
-                </div>
-              ))}
-            </div>
-          ))}
-      </div>
-    </div>
+      {gameState == 'win' || gameState == 'lost' ? (
+        <div className='gameStatus'>
+          <p className={gameState}>{gameMessage}</p>
+        </div>
+      ) : null}
+    </>
   );
 }
