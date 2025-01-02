@@ -1,0 +1,66 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.mainWrapper,
+.gameSelectorWrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.mainWrapper {
+  width: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.gameSelectorWrapper {
+  width: 50%;
+  max-width: 600px;
+  border: 0;
+  border-radius: 20px;
+  padding: 25px;
+  box-shadow: 0px 0px 16px 10px #a6a6a680;
+
+  label {
+    font-size: 24px;
+    margin-right: auto;
+    margin-top: 20px;
+  }
+
+  input[type='number'] {
+    width: -webkit-fill-available;
+    font-size: 20px;
+    padding: 8px 12px;
+    border: solid 1px #3f3f3f;
+    border-radius: 10px;
+  }
+
+  .errorSpan {
+    margin-top: 10px;
+    color: red;
+  }
+
+  .confirm-button {
+    width: 100%;
+    font-size: 18px;
+    margin-top: 15px;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 10px;
+    background-color: #007e00;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .confirm-button:active {
+    background-color: #005a00;
+  }
+}
